@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta charset="UTF-8">
+<title>Editor de Fluxograma — Planta Virtual</title>
+<meta name="description" content="Editor de fluxograma de processo no navegador: arraste ativos (bomba, trocador de calor, PSV, tanque) e conecte as portas. Exporta JSON.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Editor de Fluxograma — Planta Virtual">
+<meta property="og:description" content="Desenhe fluxogramas de processo no navegador e exporte em JSON.">
+<meta property="og:url" content="https://projetoindustrial.github.io/editor-fluxograma/">
+<meta property="og:image" content="https://projetoindustrial.github.io/editor-fluxograma/og.png">
+<link rel="icon" href="./favicon.svg" type="image/svg+xml">
+<script>
+/* Na versão pública não há servidor local: esconde os botões que dependem dele. */
+if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
+  document.write('<style>#btnCarregar,#btnSalvar,#btnExecutar,#btnHydroCalc,#btnSessao{display:none!important}</style>');
+}
+</script>
+<style>
+  :root{
+    --bg: #14171a;
+    --panel: #1c2024;
+    --panel-border: #2a2f35;
+    --grid-dot: #22262b;
+    --text: #cdd3d9;
+    --text-dim: #7d868f;
+    --liquido: #4f8fd1;
+    --termico: #d18b4f;
+    --gas: #6fae7f;
+    --dado: #9b6fd1;
+    --invalid: #c25a5a;
+    --accent: #e0a030;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    overflow:hidden;
+  }
+  .app{ display:flex; height:100vh; }
+
+  .sidebar{
+    width:200px; min-width:200px;
+    background:var(--panel);
+    border-right:1px solid var(--panel-border);
+    padding:16px 12px;
+    overflow-y:auto;
+  }
+  .sidebar h1{
+    font-size:13px; font-weight:600; letter-spacing:.02em;
+    color:var(--text); margin:0 0 2px 0;
+  }
+  .sidebar .sub{
+    font-size:11px; color:var(--text-dim); margin:0 0 18px 0;
+  }
+  .palette-item{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 10px; margin-bottom:6px;
+    background:#20252a; border:1px solid var(--panel-border);
+    border-radius:3px; cursor:grab; font-size:12.5px;
+    user-select:none;
+  }
+  .palette-item:active{ cursor:grabbing; }
+  .palette-item:hover{ border-color:#3a4048; }
+  .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+  .legend{ margin-top:22px; padding-top:14px; border-top:1px solid var(--panel-border); }
+  .legend h2{ font-size:11px; color:var(--text-dim); font-weight:600; margin:0 0 8px 0; text-transform:none; }
+  .legend-row{ display:flex; align-items:center; gap:8px; font-size:11.5px; color:var(--text-dim); margin-bottom:6px; }
+
+  .canvas-wrap{ flex:1; position:relative; overflow:hidden; }
+  .canvas{
+    position:absolute; inset:0;
+    background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+  svg.edges{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  svg.edges path{ fill:none; stroke-width:2; }
+  svg.edges path.temp{ stroke-dasharray:5 4; }
+
+  .node{
+    position:absolute;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    border-radius:4px;
+    min-width:150px;
+    box-shadow:0 4px 14px rgba(0,0,0,.35);
+  }
+  .node.selected{ border-color:var(--accent); }
+  .node-header{
+    padding:8px 10px;
+    font-size:12.5px; font-weight:600;
+    border-bottom:1px solid var(--panel-border);
+    cursor:grab;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .node-header:active{ cursor:grabbing; }
+  .node-remove{
+    color:var(--text-dim); font-size:14px; line-height:1; cursor:pointer;
+    padding:0 2px;
+  }
+  .node-remove:hover{ color:var(--invalid); }
+  .node-body{ padding:8px 10px 10px 10px; }
+  .port-row{
+    display:flex; align-items:center; justify-content:space-between;
+    font-size:11px; color:var(--text-dim); margin:5px 0;
+  }
+  .port-row.out{ justify-content:flex-end; }
+  .port-row.in .port-label{ order:2; }
+  .port{
+    width:11px; height:11px; border-radius:50%;
+    border:2px solid var(--bg);
+    cursor:crosshair;
+    flex-shrink:0;
+  }
+  .port:hover{ transform:scale(1.3); }
+  .port.in{ order:1; margin-right:6px; }
+  .port.out{ margin-left:6px; }
+
+  .toolbar{
+    position:absolute; top:14px; right:14px;
+    display:flex; gap:8px; z-index:5;
+  }
+  .btn{
+    background:#20252a; border:1px solid var(--panel-border);
+    color:var(--text); font-size:12px; padding:7px 12px;
+    border-radius:3px; cursor:pointer;
+  }
+  .btn:hover{ border-color:#3a4048; }
+  .btn.primary{ border-color:var(--accent); color:var(--accent); }
+  .btn.exec{ border-color:#6fae7f; color:#6fae7f; }
+  .btn.exec:disabled{ opacity:.4; cursor:not-allowed; }
+
+  .results-panel{
+    position:absolute; bottom:0; left:200px; right:0;
+    background:var(--panel); border-top:2px solid var(--panel-border);
+    max-height:38vh; overflow-y:auto; z-index:6;
+    font-size:12px; display:none;
+  }
+  .results-panel.open{ display:block; }
+  .results-header{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 14px; border-bottom:1px solid var(--panel-border);
+    position:sticky; top:0; background:var(--panel); z-index:1;
+  }
+  .results-header h3{ margin:0; font-size:12px; font-weight:600; color:var(--text); flex:1; }
+  .results-header .btn{ padding:4px 10px; font-size:11px; }
+  .results-body{ padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; }
+  .result-card{
+    background:#20252a; border:1px solid var(--panel-border);
+    border-radius:4px; padding:10px 12px; min-width:200px; flex:1;
+  }
+  .result-card h4{
+    margin:0 0 6px 0; font-size:11.5px; font-weight:700;
+    color:var(--accent);
+  }
+  .result-card .status-normal{ color:#6fae7f; }
+  .result-card .status-alert{ color:#d18b4f; }
+  .result-card .status-critical{ color:#c25a5a; }
+  .result-row{ display:flex; justify-content:space-between; gap:12px;
+               margin-bottom:3px; font-size:11px; color:var(--text-dim); }
+  .result-val{ color:var(--text); font-variant-numeric:tabular-nums; }
+  .results-avisos{ padding:6px 14px 10px; color:#d18b4f; font-size:11px; }
+  .results-erro{ padding:10px 14px; color:#c25a5a; }
+
+  .hint{
+    position:absolute; bottom:14px; left:14px;
+    font-size:11px; color:var(--text-dim);
+    background:var(--panel); border:1px solid var(--panel-border);
+    padding:8px 12px; border-radius:3px; max-width:340px; line-height:1.5;
+  }
+
+  .modal-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,.55);
+    display:none; align-items:center; justify-content:center; z-index:20;
+  }
+  .modal-backdrop.open{ display:flex; }
+  .modal{
+    width:520px; max-width:90vw; max-height:80vh;
+    background:var(--panel); border:1px solid var(--panel-border);
+    border-radius:5px; padding:16px; display:flex; flex-direction:column;
+  }
+  .modal h3{ margin:0 0 10px 0; font-size:13px; }
+  .modal-hydrocalc{ width:900px; }
+  .node.handoff-recebido{ box-shadow:0 0 0 3px #2ecc71; transition:box-shadow .2s; }
+  .modal textarea{
+    flex:1; min-height:280px; background:#101315; color:#a9d1ff;
+    border:1px solid var(--panel-border); border-radius:3px;
+    font-family: Consolas, Monaco, monospace; font-size:11px;
+    padding:10px; resize:vertical;
+  }
+  .modal .modal-actions{ margin-top:10px; text-align:right; }
+
+  .canvas, .node-header, .port{ touch-action:none; }
+  .palette-item, .node-header{ -webkit-user-select:none; user-select:none; }
+  @media (max-width: 760px){
+    .app{ flex-direction:column-reverse; height:100vh; height:100dvh; }
+    .sidebar{
+      width:auto; min-width:0; height:auto; flex:0 0 auto;
+      display:flex; align-items:center; gap:8px;
+      overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch;
+      border-right:0; border-top:1px solid var(--panel-border);
+      padding:10px 10px calc(10px + env(safe-area-inset-bottom,0px)) 10px;
+    }
+    .sidebar h1, .sidebar .sub, .legend{ display:none; }
+    .palette-item{ flex:0 0 auto; margin:0; padding:12px 14px; min-height:44px; white-space:nowrap; font-size:13px; cursor:pointer; }
+    .toolbar{
+      top:0; left:0; right:0; flex-wrap:nowrap; justify-content:flex-start; gap:6px;
+      overflow-x:auto; -webkit-overflow-scrolling:touch;
+      padding:calc(8px + env(safe-area-inset-top,0px)) 8px 8px 8px;
+      background:rgba(20,23,26,.94); border-bottom:1px solid var(--panel-border);
+    }
+    .toolbar .btn{ flex:0 0 auto; white-space:nowrap; }
+    .btn{ padding:10px 12px; font-size:12.5px; }
+    .results-panel{ left:0; max-height:45vh; }
+    .canvas-wrap > .hint{ left:8px; bottom:8px; max-width:calc(100% - 16px); font-size:10.5px; padding:6px 10px; }
+    .port{ width:20px; height:20px; }
+    .node-header{ padding:10px; }
+    .node-remove{ font-size:20px; padding:4px 10px; }
+    .node input, .node select, .modal textarea{ font-size:16px; }
+    .modal, .modal-hydrocalc{ width:94vw; max-width:94vw; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="sidebar">
+    <h1>Ativos</h1>
+    <p class="sub">arraste pro canvas</p>
+
+    <div class="palette-item" draggable="true" data-type="bomba">
+      <span class="dot" style="background:var(--liquido)"></span>Bomba PD
+    </div>
+    <div class="palette-item" draggable="true" data-type="linha">
+      <span class="dot" style="background:var(--liquido)"></span>Linha/Duto
+    </div>
+    <div class="palette-item" draggable="true" data-type="valvula">
+      <span class="dot" style="background:var(--liquido)"></span>Válvula JT
+    </div>
+    <div class="palette-item" draggable="true" data-type="trocador">
+      <span class="dot" style="background:var(--termico)"></span>Trocador de Calor
+    </div>
+    <div class="palette-item" draggable="true" data-type="aquecedor">
+      <span class="dot" style="background:var(--termico)"></span>Aquecedor
+    </div>
+    <div class="palette-item" draggable="true" data-type="torre">
+      <span class="dot" style="background:var(--termico)"></span>Torre de Resfriamento
+    </div>
+    <div class="palette-item" draggable="true" data-type="separador">
+      <span class="dot" style="background:var(--gas)"></span>Separador Trifásico
+    </div>
+    <div class="palette-item" draggable="true" data-type="compressor">
+      <span class="dot" style="background:var(--gas)"></span>Compressor
+    </div>
+    <div class="palette-item" draggable="true" data-type="rede">
+      <span class="dot" style="background:var(--liquido)"></span>Rede Hardy Cross
+    </div>
+    <div class="palette-item" draggable="true" data-type="tanque">
+      <span class="dot" style="background:var(--liquido)"></span>Tanque
+    </div>
+    <div class="palette-item" draggable="true" data-type="placa_orificio">
+      <span class="dot" style="background:var(--liquido)"></span>Placa de Orifício
+    </div>
+    <div class="palette-item" draggable="true" data-type="bomba_incendio">
+      <span class="dot" style="background:var(--liquido)"></span>Bomba de Incêndio
+    </div>
+    <div class="palette-item" draggable="true" data-type="hrsg">
+      <span class="dot" style="background:var(--termico)"></span>HRSG (Caldeira de Recuperação)
+    </div>
+    <div class="palette-item" draggable="true" data-type="boiloff_gnl">
+      <span class="dot" style="background:var(--termico)"></span>Boil-off GNL
+    </div>
+    <div class="palette-item" draggable="true" data-type="purgador_capacidade">
+      <span class="dot" style="background:var(--termico)"></span>Purgador de Vapor
+    </div>
+    <div class="palette-item" draggable="true" data-type="protecao_catodica">
+      <span class="dot" style="background:var(--liquido)"></span>Proteção Catódica
+    </div>
+    <div class="palette-item" draggable="true" data-type="coluna_recheio_diametro">
+      <span class="dot" style="background:var(--gas)"></span>Coluna Recheio (Diâmetro)
+    </div>
+    <div class="palette-item" draggable="true" data-type="aminas_triagem_gpsa">
+      <span class="dot" style="background:var(--gas)"></span>Triagem de Aminas (GPSA)
+    </div>
+    <div class="palette-item" draggable="true" data-type="silo_jenike">
+      <span class="dot" style="background:var(--liquido)"></span>Silo (Jenike)
+    </div>
+    <div class="palette-item" draggable="true" data-type="separador_api_stokes">
+      <span class="dot" style="background:var(--liquido)"></span>Separador API Água-Óleo
+    </div>
+    <div class="palette-item" draggable="true" data-type="blowdown_api521">
+      <span class="dot" style="background:var(--gas)"></span>Blowdown (API 521)
+    </div>
+    <div class="palette-item" draggable="true" data-type="psv_api520">
+      <span class="dot" style="background:var(--dado)"></span>PSV (API 520/526)
+    </div>
+    <div class="palette-item" draggable="true" data-type="bomba_centrifuga">
+      <span class="dot" style="background:var(--liquido)"></span>Bomba Centrífuga (curva × sistema)
+    </div>
+    <div class="palette-item" draggable="true" data-type="transientes_golpe_ariete">
+      <span class="dot" style="background:var(--liquido)"></span>Transientes -- Golpe de Aríete
+    </div>
+    <div class="palette-item" draggable="true" data-type="valvula_controle_cv">
+      <span class="dot" style="background:var(--liquido)"></span>Válvula de Controle (Kv/Cv)
+    </div>
+    <div class="palette-item" draggable="true" data-type="bomba_direta_sem_haste">
+      <span class="dot" style="background:var(--liquido)"></span>Bomba Ação Direta s/ Haste de Cauda (carga)
+    </div>
+    <div class="palette-item" draggable="true" data-type="amortecedor_pulsacao">
+      <span class="dot" style="background:var(--liquido)"></span>Amortecedor de Pulsação (volume)
+    </div>
+    <div class="palette-item" draggable="true" data-type="separador_trifasico">
+      <span class="dot" style="background:var(--dado)"></span>Separador Trifásico
+    </div>
+    <div class="palette-item" draggable="true" data-type="turboexpansor">
+      <span class="dot" style="background:var(--gas)"></span>Turboexpansor (REATORES)
+    </div>
+    <div class="palette-item" draggable="true" data-type="co2_compressor">
+      <span class="dot" style="background:var(--gas)"></span>Compressor CO2 (PR)
+    </div>
+    <div class="palette-item" draggable="true" data-type="co2_tubulacao">
+      <span class="dot" style="background:var(--gas)"></span>Tubulação CO2 (fase densa)
+    </div>
+    <div class="palette-item" draggable="true" data-type="refrigeracao_amonia">
+      <span class="dot" style="background:var(--gas)"></span>Ciclo Refrigeração NH3
+    </div>
+    <div class="palette-item" draggable="true" data-type="reator_gibbs">
+      <span class="dot" style="background:var(--gas)"></span>Reator de Gibbs
+    </div>
+    <div class="palette-item" draggable="true" data-type="cstr">
+      <span class="dot" style="background:var(--gas)"></span>CSTR
+    </div>
+    <div class="palette-item" draggable="true" data-type="cascata_cstr">
+      <span class="dot" style="background:var(--gas)"></span>Cascata de CSTRs
+    </div>
+    <div class="palette-item" draggable="true" data-type="destilacao_reativa">
+      <span class="dot" style="background:var(--dado)"></span>Destilação Reativa
+    </div>
+    <div class="palette-item" draggable="true" data-type="extracao_ll">
+      <span class="dot" style="background:var(--liquido)"></span>Extração Líquido-Líquido
+    </div>
+    <div class="palette-item" draggable="true" data-type="pfr">
+      <span class="dot" style="background:var(--gas)"></span>PFR
+    </div>
+    <div class="palette-item" draggable="true" data-type="batelada">
+      <span class="dot" style="background:var(--gas)"></span>Reator Batelada
+    </div>
+    <div class="palette-item" draggable="true" data-type="enzimatico">
+      <span class="dot" style="background:var(--gas)"></span>Reator Enzimático
+    </div>
+    <div class="palette-item" draggable="true" data-type="semibatch">
+      <span class="dot" style="background:var(--gas)"></span>Reator Semibatch
+    </div>
+    <div class="palette-item" draggable="true" data-type="polimerizacao">
+      <span class="dot" style="background:var(--gas)"></span>Reator Polimerização
+    </div>
+    <div class="palette-item" draggable="true" data-type="leito_fixo">
+      <span class="dot" style="background:var(--gas)"></span>Leito Fixo (não-catalítico)
+    </div>
+    <div class="palette-item" draggable="true" data-type="cristalizador">
+      <span class="dot" style="background:var(--dado)"></span>Cristalizador
+    </div>
+    <div class="palette-item" draggable="true" data-type="leito_fluidizado">
+      <span class="dot" style="background:var(--gas)"></span>Leito Fluidizado
+    </div>
+    <div class="palette-item" draggable="true" data-type="eletroquimico">
+      <span class="dot" style="background:var(--dado)"></span>Reator Eletroquímico
+    </div>
+    <div class="palette-item" draggable="true" data-type="secador">
+      <span class="dot" style="background:var(--gas)"></span>Secador
+    </div>
+    <div class="palette-item" draggable="true" data-type="adsorcao">
+      <span class="dot" style="background:var(--liquido)"></span>Adsorção (PSA/TSA)
+    </div>
+    <div class="palette-item" draggable="true" data-type="pirolise">
+      <span class="dot" style="background:var(--gas)"></span>Pirólise Cinética
+    </div>
+    <div class="palette-item" draggable="true" data-type="bioreator">
+      <span class="dot" style="background:var(--gas)"></span>Bioreator
+    </div>
+    <div class="palette-item" draggable="true" data-type="hdc_trickle_bed">
+      <span class="dot" style="background:var(--gas)"></span>HDC Trickle-Bed
+    </div>
+    <div class="palette-item" draggable="true" data-type="linha_perfil_termico">
+      <span class="dot" style="background:var(--termico)"></span>Linha (Perfil Térmico)
+    </div>
+
+    <div class="legend">
+      <h2>Tipos de porta</h2>
+      <div class="legend-row"><span class="dot" style="background:var(--liquido)"></span>Líquido</div>
+      <div class="legend-row"><span class="dot" style="background:var(--termico)"></span>Térmico</div>
+      <div class="legend-row"><span class="dot" style="background:var(--gas)"></span>Gás/vapor</div>
+      <div class="legend-row"><span class="dot" style="background:var(--dado)"></span>Dado (parâmetro escalar)</div>
+      <div class="legend-row"><span class="dot" style="background:var(--invalid)"></span>Conexão incompatível</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="canvas" id="canvas">
+      <svg class="edges" id="edgesSvg"></svg>
+    </div>
+    <div class="toolbar">
+      <button class="btn" id="btnClear">Limpar</button>
+      <button class="btn" id="btnCarregar" title="Carrega graph.json de um servidor local (só na versão local)">Carregar</button>
+      <button class="btn" id="btnSalvar" title="Salva o grafo atual como graph.json no servidor local">Salvar</button>
+      <button class="btn primary" id="btnExport">Exportar JSON</button>
+      <button class="btn exec" id="btnExecutar" title="Executa o grafo (só na versão local)">▶ Executar</button>
+      <button class="btn" id="btnHydroCalc" disabled
+              title="Selecione um nó do tipo torre de resfriamento, válvula JT, rede hidráulica, placa de orifício, bomba de incêndio ou coluna de absorção para habilitar">
+        🧮 Configurar via HydroCalc
+      </button>
+      <button class="btn" id="btnSessao"
+              title="Lê uma sessão gravada por um painel local e permite aplicar ao nó selecionado">
+        📥 Sessão do ecossistema
+      </button>
+    </div>
+    <div class="results-panel" id="resultsPanel">
+      <div class="results-header">
+        <h3 id="resultsTitle">Resultados da Execução</h3>
+        <button class="btn" id="btnCloseResults">✕</button>
+      </div>
+      <div id="resultsBody" class="results-body"></div>
+    </div>
+    <div class="hint">
+      Arraste ativos da esquerda pro canvas. Clique e arraste de uma porta (bolinha) até outra pra conectar.
+      Cores diferentes = tipos incompatíveis (a conexão é sinalizada em vermelho, mas ainda é criada — decisão de validação fica pra próxima rodada).
+    </div>
+  </div>
+
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h3>Grafo exportado (nós + arestas)</h3>
+    <textarea id="jsonOut" readonly></textarea>
+    <div class="modal-actions">
+      <button class="btn" id="btnCloseModal">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="hydroCalcBackdrop">
+  <div class="modal modal-hydrocalc">
+    <h3 id="hydroCalcTitulo">Dimensionar via HydroCalc</h3>
+    <p class="hint" style="margin:0 0 8px">
+      Ajuste os parâmetros no HydroCalc e clique em "Usar na Planta Virtual" lá dentro —
+      o valor calculado (C_alvo, L/G) volta pra cá automaticamente, sem copiar/colar.
+    </p>
+    <iframe id="hydroCalcFrame" style="width:100%;height:520px;border:1px solid var(--border,#333);border-radius:6px"></iframe>
+    <div class="modal-actions">
+      <button class="btn" id="btnCloseHydroCalc">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="sessaoBackdrop">
+  <div class="modal">
+    <h3>Sessão do ecossistema</h3>
+    <p class="hint" id="sessaoInfo" style="margin:0 0 8px"></p>
+    <div id="sessaoNamespaces"></div>
+    <div class="modal-actions">
+      <button class="btn" id="btnRecarregarSessao">🔄 Recarregar</button>
+      <button class="btn" id="btnCloseSessao">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const NODE_DEFS = {
+    bomba:      { label:'Bomba PD',            ports:{ in:[], out:[{id:'saida', type:'liquido', label:'saída'}] } },
+    linha:      { label:'Linha/Duto',          ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'saida', type:'liquido', label:'saída'}] } },
+    valvula:    { label:'Válvula JT',          ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'saida', type:'gas', label:'saída'}] } },
+    trocador:   { label:'Trocador de Calor',   ports:{ in:[{id:'frio_in', type:'liquido', label:'frio in'},{id:'quente_in', type:'termico', label:'quente in'}], out:[{id:'frio_out', type:'termico', label:'frio out'},{id:'quente_out', type:'termico', label:'quente out'},{id:'quente_saida_duty', type:'termico', label:'duty (W)'}] } },
+    aquecedor:  { label:'Aquecedor',           ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'saida', type:'termico', label:'saída'}] } },
+    torre:      { label:'Torre de Resfriamento', ports:{ in:[{id:'quente_in', type:'termico', label:'quente in'}], out:[{id:'fria_out', type:'termico', label:'fria out'}] } },
+    separador:  { label:'Separador Trifásico', ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'gas_out', type:'gas', label:'gás'},{id:'liq_out', type:'liquido', label:'líquido'}] } },
+    compressor: { label:'Compressor',          ports:{ in:[{id:'entrada', type:'gas', label:'entrada'}], out:[{id:'saida', type:'gas', label:'saída'}] } },
+    rede:       { label:'Rede Hardy Cross',    ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'saida', type:'liquido', label:'saída'}] } },
+    tanque:     { label:'Tanque',              ports:{ in:[{id:'entrada', type:'liquido', label:'entrada'}], out:[{id:'saida', type:'liquido', label:'saída'}] } },
+    placa_orificio:  { label:'Placa de Orifício', ports:{ in:[{id:'entrada', type:'liquido', label:'dp'}], out:[] } },
+    bomba_incendio:  { label:'Bomba de Incêndio', ports:{ in:[{id:'entrada', type:'liquido', label:'área'}], out:[] } },
+    coluna_absorcao: { label:'Coluna de Absorção', ports:{ in:[{id:'gas_entrada', type:'gas', label:'G (kmol/h)'},{id:'fracao_entrada', type:'gas', label:'y_in'}], out:[] } },
+    ciclone:         { label:'Ciclone',            ports:{ in:[{id:'gas_entrada', type:'gas', label:'Q (m³/s)'}], out:[] } },
+    flare_ko_seal_drum: { label:'Flare KO/Seal Drum', ports:{ in:[], out:[] } },
+    hrsg:                    { label:'HRSG (Caldeira de Recuperação)', ports:{ in:[{id:'gas_entrada_vazao', type:'gas', label:'m_gas (kg/s)'},{id:'gas_entrada_temperatura', type:'termico', label:'T_gas_in (°C)'}], out:[] } },
+    boiloff_gnl:             { label:'Boil-off GNL',             ports:{ in:[{id:'entrada_temperatura_ambiente', type:'termico', label:'T_ambiente (°C)'},{id:'entrada_massa_liquido', type:'liquido', label:'massa (kg)'}], out:[] } },
+    purgador_capacidade:     { label:'Purgador de Vapor',        ports:{ in:[{id:'entrada_duty_termico', type:'termico', label:'duty (kW)'}], out:[] } },
+    protecao_catodica:       { label:'Proteção Catódica',        ports:{ in:[{id:'entrada_area_protegida', type:'liquido', label:'área (m²)'}], out:[] } },
+    coluna_recheio_diametro: { label:'Coluna Recheio (Diâmetro)', ports:{ in:[{id:'entrada_vazao_vapor', type:'gas', label:'Q_v (m³/s)'}], out:[] } },
+    aminas_triagem_gpsa:     { label:'Triagem de Aminas (GPSA)', ports:{ in:[{id:'entrada_vazao_gas', type:'gas', label:'q_gas (MMscfd)'}], out:[] } },
+    silo_jenike:             { label:'Silo (Jenike)',             ports:{ in:[], out:[] } },
+    separador_api_stokes:    { label:'Separador API Água-Óleo',  ports:{ in:[{id:'entrada_vazao_projeto', type:'liquido', label:'Q_design (m³/h)'}], out:[] } },
+    blowdown_api521:         { label:'Blowdown (API 521)',       ports:{ in:[{id:'entrada_pressao_vaso', type:'liquido', label:'P0 (Pa)'}], out:[] } },
+    psv_api520:              { label:'PSV (API 520/526)',        ports:{ in:[{id:'area_molhada', type:'dado', label:'A molhada (m²)'}], out:[] } },
+    bomba_centrifuga:        { label:'Bomba Centrífuga',         ports:{ in:[{id:'entrada_altura_estatica', type:'dado', label:'Hest (m)'}], out:[] } },
+    transientes_golpe_ariete:{ label:'Transientes -- Golpe de Aríete', ports:{ in:[{id:'entrada_velocidade', type:'dado', label:'v (m/s)'}], out:[] } },
+    valvula_controle_cv:     { label:'Válvula de Controle (Kv/Cv)', ports:{ in:[{id:'entrada_vazao', type:'dado', label:'Q (m³/h)'}], out:[] } },
+    bomba_direta_sem_haste:  { label:'Bomba Ação Direta s/ Haste de Cauda', ports:{ in:[{id:'entrada_pressao_lado_sem_haste', type:'dado', label:'P lado sem haste (Pa)'},{id:'entrada_pressao_lado_com_haste', type:'dado', label:'P lado com haste (Pa)'}], out:[] } },
+    amortecedor_pulsacao:    { label:'Amortecedor de Pulsação', ports:{ in:[{id:'entrada_pressao_media', type:'dado', label:'P média (Pa)'}], out:[] } },
+    separador_trifasico: { label:'Separador Trifásico', ports:{ in:[{id:'diametro_candidato', type:'dado', label:'D_m (m)'}], out:[] } },
+    turboexpansor: { label:'Turboexpansor (REATORES)', ports:{ in:[{id:'entrada_P', type:'gas', label:'P1_pa (Pa)'},{id:'saida_P', type:'gas', label:'P2_pa (Pa)'}], out:[] } },
+    co2_compressor: { label:'Compressor CO2 (PR)', ports:{ in:[{id:'entrada_P', type:'gas', label:'P1_pa (Pa)'},{id:'saida_P', type:'gas', label:'P2_pa (Pa)'}], out:[{id:'saida_T', type:'gas', label:'T2_real (K)'}] } },
+    co2_tubulacao: { label:'Tubulação CO2 (fase densa)', ports:{ in:[{id:'entrada_vazao', type:'gas', label:'vazao_massica_kg_s (kg/s)'},{id:'entrada_T', type:'gas', label:'T_K (K)'}], out:[] } },
+    refrigeracao_amonia: { label:'Ciclo Refrigeração NH3', ports:{ in:[{id:'entrada_vazao', type:'gas', label:'vazao_massica_kg_s (kg/s)'},{id:'entrada_agua_fria_T', type:'termico', label:'T_agua_fria (°C)'}], out:[] } },
+    reator_gibbs: { label:'Reator de Gibbs', ports:{ in:[{id:'T_operacao', type:'gas', label:'T_K (K)'}, {id:'entrada_alimentacao', type:'dado', label:'alimentação (mol)'}], out:[{id:'saida_P', type:'gas', label:'P (Pa)'}] } },
+    cstr: { label:'CSTR', ports:{ in:[{id:'entrada_vazao', type:'gas', label:'Q (m3/s)'}], out:[{id:'saida_C', type:'gas', label:'C_saida (mol/m3)'}] } },
+    cascata_cstr: { label:'Cascata de CSTRs', ports:{ in:[{id:'entrada_vazao', type:'gas', label:'Q (m3/s)'}], out:[{id:'saida_conversao', type:'gas', label:'conversão final'}] } },
+    destilacao_reativa: { label:'Destilação Reativa', ports:{ in:[{id:'razao_refluxo', type:'dado', label:'R (adimensional)'}, {id:'entrada_z_F', type:'gas', label:'z_F (fração molar)'}], out:[] } },
+    extracao_ll: { label:'Extração Líquido-Líquido', ports:{ in:[{id:'entrada_vazao', type:'liquido', label:'F (kmol/h)'}], out:[] } },
+    pfr: { label:'PFR', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'},{id:'entrada_C', type:'gas', label:'C_in (mol/m3)'}], out:[] } },
+    batelada: { label:'Reator Batelada', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[] } },
+    enzimatico: { label:'Reator Enzimático', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[] } },
+    semibatch: { label:'Reator Semibatch', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[] } },
+    polimerizacao: { label:'Reator Polimerização', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[] } },
+    leito_fixo: { label:'Leito Fixo (não-catalítico)', ports:{ in:[{id:'entrada_T', type:'gas', label:'T (K)'}], out:[] } },
+    cristalizador: { label:'Cristalizador', ports:{ in:[{id:'entrada_t_batch', type:'dado', label:'t_batch (s)'}], out:[] } },
+    leito_fluidizado: { label:'Leito Fluidizado', ports:{ in:[{id:'entrada_U0', type:'gas', label:'U0 (m/s)'}], out:[] } },
+    eletroquimico: { label:'Reator Eletroquímico', ports:{ in:[{id:'entrada_eta', type:'dado', label:'eta (V)'}], out:[] } },
+    secador: { label:'Secador', ports:{ in:[{id:'entrada_T_ar', type:'gas', label:'T_ar (K)'}], out:[] } },
+    adsorcao: { label:'Adsorção (PSA/TSA)', ports:{ in:[{id:'entrada_vazao', type:'liquido', label:'Q_mL_min (mL/min)'}], out:[] } },
+    pirolise: { label:'Pirólise Cinética', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[{id:'saida_conversao_material', type:'dado', label:'conversão + material'}] } },
+    bioreator: { label:'Bioreator', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'}], out:[] } },
+    hdc_trickle_bed: { label:'HDC Trickle-Bed', ports:{ in:[{id:'entrada_T', type:'gas', label:'T_in (K)'},{id:'entrada_u_L', type:'liquido', label:'u_L (m/s)'}], out:[] } },
+    linha_perfil_termico: { label:'Linha (Perfil Térmico)', ports:{ in:[{id:'entrada_vazao', type:'liquido', label:'vazão (m³/s)'},{id:'entrada_temperatura', type:'termico', label:'T_entrada (K)'}], out:[] } },
+  };
+
+  const COLORS = { liquido:'#4f8fd1', termico:'#d18b4f', gas:'#6fae7f', dado:'#9b6fd1' };
+
+  const canvas = document.getElementById('canvas');
+  const svg = document.getElementById('edgesSvg');
+  let nodeSeq = 0;
+  const nodes = {};   // id -> {el, type, x, y}
+  const edges = [];   // {id, fromNode, fromPort, toNode, toPort, fromType, toType}
+
+  function createNode(type, x, y){
+    const def = NODE_DEFS[type];
+    if(!def) return;
+    const id = 'n' + (++nodeSeq);
+    const el = document.createElement('div');
+    el.className = 'node';
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.dataset.id = id;
+
+    const header = document.createElement('div');
+    header.className = 'node-header';
+    header.innerHTML = `<span>${def.label}</span><span class="node-remove" title="remover">✕</span>`;
+    el.appendChild(header);
+
+    const body = document.createElement('div');
+    body.className = 'node-body';
+
+    const maxRows = Math.max(def.ports.in.length, def.ports.out.length, 1);
+    for(let i=0;i<maxRows;i++){
+      const row = document.createElement('div');
+      row.className = 'port-row';
+      const pin = def.ports.in[i];
+      const pout = def.ports.out[i];
+
+      if(pin){
+        const d = document.createElement('div');
+        d.className = 'port in';
+        d.style.background = COLORS[pin.type];
+        d.dataset.node = id; d.dataset.port = pin.id; d.dataset.dir='in'; d.dataset.type = pin.type;
+        const lab = document.createElement('span');
+        lab.className='port-label'; lab.textContent = pin.label;
+        row.appendChild(d); row.appendChild(lab);
+      } else {
+        row.appendChild(document.createElement('span'));
+      }
+
+      if(pout){
+        const lab = document.createElement('span');
+        lab.className='port-label'; lab.textContent = pout.label;
+        const d = document.createElement('div');
+        d.className = 'port out';
+        d.style.background = COLORS[pout.type];
+        d.dataset.node = id; d.dataset.port = pout.id; d.dataset.dir='out'; d.dataset.type = pout.type;
+        row.appendChild(lab); row.appendChild(d);
+      }
+      body.appendChild(row);
+    }
+    el.appendChild(body);
+    canvas.appendChild(el);
+    nodes[id] = { el, type, x, y, parametros: {} };
+
+    header.querySelector('.node-remove').addEventListener('click', (e)=>{
+      e.stopPropagation();
+      removeNode(id);
+    });
+
+    let dragging=false, offX=0, offY=0;
+    header.addEventListener('pointerdown', (e)=>{
+      if(e.target.classList.contains('node-remove')) return;
+      dragging=true;
+      const rect = el.getBoundingClientRect();
+      offX = e.clientX - rect.left;
+      offY = e.clientY - rect.top;
+      header.setPointerCapture(e.pointerId);  // captura no cabeçalho, onde estão os listeners de move/up
+      selectNode(id);
+    });
+    header.addEventListener('pointermove', (e)=>{
+      if(!dragging) return;
+      const wrapRect = canvas.getBoundingClientRect();
+      const nx = e.clientX - wrapRect.left - offX;
+      const ny = e.clientY - wrapRect.top - offY;
+      el.style.left = Math.max(0,nx) + 'px';
+      el.style.top = Math.max(0,ny) + 'px';
+      nodes[id].x = nx; nodes[id].y = ny;
+      redrawEdges();
+    });
+    header.addEventListener('pointerup', ()=>{ dragging=false; });
+
+    el.querySelectorAll('.port').forEach(portEl=>{
+      portEl.addEventListener('pointerdown', (e)=>{
+        e.stopPropagation();
+        startConnection(portEl, e);
+      });
+    });
+
+    return id;
+  }
+
+  function removeNode(id){
+    if(nodes[id]){
+      nodes[id].el.remove();
+      delete nodes[id];
+    }
+    for(let i=edges.length-1;i>=0;i--){
+      if(edges[i].fromNode===id || edges[i].toNode===id) edges.splice(i,1);
+    }
+    redrawEdges();
+  }
+
+  let selectedId = null;
+  function selectNode(id){
+    if(selectedId && nodes[selectedId]) nodes[selectedId].el.classList.remove('selected');
+    selectedId = id;
+    if(nodes[id]) nodes[id].el.classList.add('selected');
+    atualizarBotaoHydroCalc();
+  }
+
+  function atualizarBotaoHydroCalc(){
+    const btn = document.getElementById('btnHydroCalc');
+    const n = nodes[selectedId];
+    const habilitado = !!(n && TIPOS_COM_HANDOFF_HYDROCALC[n.type]);
+    btn.disabled = !habilitado;
+    btn.title = habilitado
+      ? 'Abre o HydroCalc pra dimensionar este ativo'
+      : 'Selecione um nó do tipo torre de resfriamento, válvula JT, rede hidráulica, placa de orifício, bomba de incêndio ou coluna de absorção para habilitar';
+  }
+
+  document.getElementById('btnHydroCalc').addEventListener('click', ()=>{
+    const n = nodes[selectedId];
+    if(!n) return;
+    const modulo = TIPOS_COM_HANDOFF_HYDROCALC[n.type];
+    if(!modulo) return;
+    document.getElementById('hydroCalcTitulo').textContent =
+      'Dimensionar ' + ((NODE_DEFS[n.type] && NODE_DEFS[n.type].label) || n.type) + ' via HydroCalc';
+    document.getElementById('hydroCalcFrame').src =
+      ORIGEM_HYDROCALC + '/?modulo=' + modulo + '&retorno=1';
+    document.getElementById('hydroCalcBackdrop').classList.add('open');
+  });
+  document.getElementById('btnCloseHydroCalc').addEventListener('click', ()=>{
+    document.getElementById('hydroCalcBackdrop').classList.remove('open');
+    document.getElementById('hydroCalcFrame').src = '';
+  });
+
+  window.addEventListener('message', (event)=>{
+    if(event.origin !== ORIGEM_HYDROCALC) return;
+    const msg = event.data;
+    if(!msg || msg.tipo !== 'hydrocalc_dimensionamento' || !msg.dados) return;
+    const n = nodes[selectedId];
+    if(!n || TIPOS_COM_HANDOFF_HYDROCALC[n.type] !== msg.modulo) {
+      console.warn('Handoff do HydroCalc recebido mas nenhum nó compatível está selecionado.');
+      return;
+    }
+    n.parametros = Object.assign({}, n.parametros, msg.dados);
+    document.getElementById('hydroCalcBackdrop').classList.remove('open');
+    document.getElementById('hydroCalcFrame').src = '';
+    n.el.classList.add('handoff-recebido');
+    setTimeout(()=>n.el.classList.remove('handoff-recebido'), 1500);
+  });
+
+  async function carregarSessaoEcossistema(){
+    const info = document.getElementById('sessaoInfo');
+    const lista = document.getElementById('sessaoNamespaces');
+    lista.innerHTML = '';
+    info.textContent = 'Carregando...';
+    let data;
+    try {
+      const resp = await fetch(SERVIDOR + '/api/sessao');
+      data = await resp.json();
+    } catch (e) {
+      info.textContent = 'Servidor local não respondeu -- ' + e.message;
+      return;
+    }
+    if (!data.ok) {
+      info.textContent = 'Erro ao ler a sessão: ' + (data.erro || 'desconhecido');
+      return;
+    }
+    const sessao = data.sessao;
+    if (!sessao.timestamp) {
+      info.textContent = 'Nenhuma sessão gravada ainda.';
+      return;
+    }
+    info.textContent = 'Gravado por "' + sessao.atualizado_por + '" em ' + sessao.timestamp + '.';
+    ['residuo_entrada', 'movar', 'planta_virtual'].forEach(ns=>{
+      const conteudo = sessao[ns];
+      if (!conteudo || !Object.keys(conteudo).length) return;
+      const bloco = document.createElement('div');
+      bloco.style.marginBottom = '10px';
+      const pre = document.createElement('pre');
+      pre.style.cssText = 'white-space:pre-wrap;font-size:12px;background:rgba(128,128,128,0.15);padding:6px;border-radius:4px;margin:0 0 4px';
+      pre.textContent = ns + ':\n' + JSON.stringify(conteudo, null, 2);
+      const aplicar = document.createElement('button');
+      aplicar.className = 'btn';
+      aplicar.textContent = 'Aplicar "' + ns + '" ao nó selecionado';
+      aplicar.addEventListener('click', ()=>aplicarNamespaceAoNoSelecionado(ns, conteudo));
+      bloco.appendChild(pre);
+      bloco.appendChild(aplicar);
+      lista.appendChild(bloco);
+    });
+  }
+
+  function aplicarNamespaceAoNoSelecionado(namespace, conteudo){
+    const n = nodes[selectedId];
+    if (!n) {
+      alert('Selecione um nó no canvas antes de aplicar.');
+      return;
+    }
+    n.parametros = Object.assign({}, n.parametros, conteudo);
+    n.el.classList.add('handoff-recebido');
+    setTimeout(()=>n.el.classList.remove('handoff-recebido'), 1500);
+  }
+
+  document.getElementById('btnSessao').addEventListener('click', ()=>{
+    document.getElementById('sessaoBackdrop').classList.add('open');
+    carregarSessaoEcossistema();
+  });
+  document.getElementById('btnRecarregarSessao').addEventListener('click', carregarSessaoEcossistema);
+  document.getElementById('btnCloseSessao').addEventListener('click', ()=>{
+    document.getElementById('sessaoBackdrop').classList.remove('open');
+  });
+
+  function portCenter(portEl){
+    const r = portEl.getBoundingClientRect();
+    const wrapRect = canvas.getBoundingClientRect();
+    return {
+      x: r.left + r.width/2 - wrapRect.left,
+      y: r.top + r.height/2 - wrapRect.top
+    };
+  }
+
+  function pathBetween(p1,p2){
+    const dx = Math.max(40, Math.abs(p2.x-p1.x)/2);
+    return `M ${p1.x} ${p1.y} C ${p1.x+dx} ${p1.y}, ${p2.x-dx} ${p2.y}, ${p2.x} ${p2.y}`;
+  }
+
+  let tempPath = null;
+  let connSource = null;
+
+  function startConnection(portEl, e){
+    connSource = portEl;
+    tempPath = document.createElementNS('http://www.w3.org/2000/svg','path');
+    tempPath.setAttribute('class','temp');
+    tempPath.setAttribute('stroke', portEl.style.background || '#999');
+    svg.appendChild(tempPath);
+
+    function move(ev){
+      const wrapRect = canvas.getBoundingClientRect();
+      const p1 = portCenter(portEl);
+      const p2 = { x: ev.clientX - wrapRect.left, y: ev.clientY - wrapRect.top };
+      tempPath.setAttribute('d', pathBetween(p1,p2));
+    }
+    function up(ev){
+      document.removeEventListener('pointermove', move);
+      document.removeEventListener('pointerup', up);
+      if(tempPath){ tempPath.remove(); tempPath=null; }
+      const target = document.elementFromPoint(ev.clientX, ev.clientY);
+      if(target && target.classList.contains('port') && target!==portEl){
+        tryCreateEdge(portEl, target);
+      }
+      connSource = null;
+    }
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', up);
+  }
+
+  function tryCreateEdge(a, b){
+    let outEl, inEl;
+    if(a.dataset.dir==='out' && b.dataset.dir==='in'){ outEl=a; inEl=b; }
+    else if(a.dataset.dir==='in' && b.dataset.dir==='out'){ outEl=b; inEl=a; }
+    else { return; } // must connect an out to an in
+
+    const edge = {
+      id: 'e'+(edges.length+1)+'_'+Date.now(),
+      fromNode: outEl.dataset.node, fromPort: outEl.dataset.port, fromType: outEl.dataset.type,
+      toNode: inEl.dataset.node, toPort: inEl.dataset.port, toType: inEl.dataset.type,
+      valid: outEl.dataset.type === inEl.dataset.type
+    };
+    edges.push(edge);
+    redrawEdges();
+  }
+
+  function redrawEdges(){
+    svg.innerHTML = '';
+    edges.forEach(edge=>{
+      const fromEl = nodes[edge.fromNode] && nodes[edge.fromNode].el.querySelector(`.port[data-port="${edge.fromPort}"][data-dir="out"]`);
+      const toEl = nodes[edge.toNode] && nodes[edge.toNode].el.querySelector(`.port[data-port="${edge.toPort}"][data-dir="in"]`);
+      if(!fromEl || !toEl) return;
+      const p1 = portCenter(fromEl);
+      const p2 = portCenter(toEl);
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', pathBetween(p1,p2));
+      path.setAttribute('stroke', edge.valid ? (COLORS[edge.fromType]||'#999') : '#c25a5a');
+      svg.appendChild(path);
+    });
+  }
+
+  document.querySelectorAll('.palette-item').forEach(item=>{
+    item.addEventListener('dragstart', (e)=>{
+      e.dataTransfer.setData('text/plain', item.dataset.type);
+    });
+  });
+  canvas.addEventListener('dragover', (e)=> e.preventDefault());
+  canvas.addEventListener('drop', (e)=>{
+    e.preventDefault();
+    const type = e.dataTransfer.getData('text/plain');
+    const wrapRect = canvas.getBoundingClientRect();
+    const x = e.clientX - wrapRect.left - 70;
+    const y = e.clientY - wrapRect.top - 20;
+    createNode(type, Math.max(0,x), Math.max(0,y));
+  });
+
+  const DEMO_DY = window.matchMedia('(max-width: 760px)').matches ? 56 : 0;  // desce o grafo de demonstração sob a barra de botões
+  const modoToque = ()=> window.matchMedia('(max-width: 760px)').matches || window.matchMedia('(pointer: coarse)').matches;
+  document.querySelectorAll('.palette-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      if(!modoToque()) return;
+      const r = canvas.getBoundingClientRect();
+      const n = Object.keys(nodes).length;
+      const x = Math.max(8, Math.min(Math.max(8, r.width - 170), 16 + (n % 5) * 26));
+      const y = 64 + (n % 6) * 30;
+      createNode(item.dataset.type, x, Math.min(y, Math.max(8, r.height - 140)));
+      const h = document.querySelector('.canvas-wrap > .hint'); if(h && window.matchMedia('(max-width: 760px)').matches) h.style.display = 'none';
+    });
+  });
+  if(modoToque()){
+    const sub = document.querySelector('.sidebar .sub'); if(sub) sub.textContent = 'toque para adicionar';
+    const h = document.querySelector('.canvas-wrap > .hint');
+    if(h) h.textContent = 'Toque num ativo (embaixo) para adicioná-lo. Arraste o cabeçalho do bloco para mover e a bolinha de uma porta até outra para conectar.';
+  }
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    if(e.target===canvas){ selectNode(null); }
+  });
+
+  document.getElementById('btnClear').addEventListener('click', ()=>{
+    Object.keys(nodes).forEach(removeNode);
+    edges.length = 0;
+    redrawEdges();
+  });
+
+  document.getElementById('btnExport').addEventListener('click', ()=>{
+    const graph = getGraphJSON();
+    document.getElementById('jsonOut').value = JSON.stringify(graph, null, 2);
+    document.getElementById('modalBackdrop').classList.add('open');
+  });
+  document.getElementById('btnCloseModal').addEventListener('click', ()=>{
+    document.getElementById('modalBackdrop').classList.remove('open');
+  });
+
+  const SERVIDOR = 'http://localhost:8765';
+  const ORIGEM_HYDROCALC = 'http://localhost:8503';
+  const TIPOS_COM_HANDOFF_HYDROCALC = {
+    'torre': 'torre', 'valvula': 'jthid', 'rede': 'hcross',
+    'placa_orificio': 'orificio', 'bomba_incendio': 'incendio', 'coluna_absorcao': 'amina_kremser',
+    'aminas_triagem_gpsa': 'aminas', 'separador_api_stokes': 'separador_api',
+    'protecao_catodica': 'protecao_catodica', 'purgador_capacidade': 'purgadores',
+    'hrsg': 'hrsg', 'blowdown_api521': 'blowdown', 'silo_jenike': 'silo_jenike',
+    'boiloff_gnl': 'boiloff', 'coluna_recheio_diametro': 'coluna_recheio',
+    'psv_api520': 'psv',
+    'bomba_centrifuga': 'bomba',
+    'transientes_golpe_ariete': 'transientes',
+    'valvula_controle_cv': 'cv',
+  };
+  const panel = document.getElementById('resultsPanel');
+  const resultsBody = document.getElementById('resultsBody');
+  const resultsTitle = document.getElementById('resultsTitle');
+
+  function getGraphJSON() {
+    return {
+      nodes: Object.entries(nodes).map(([id,n])=>{
+        const node = {
+          id, type:n.type, label: NODE_DEFS[n.type].label,
+          x:Math.round(n.x), y:Math.round(n.y)
+        };
+        if (n.parametros && Object.keys(n.parametros).length) {
+          node.parametros = n.parametros;
+        }
+        return node;
+      }),
+      edges: edges.map(e=>({
+        id:e.id, from:{node:e.fromNode, port:e.fromPort},
+        to:{node:e.toNode, port:e.toPort}, tipo_compativel: e.valid
+      }))
+    };
+  }
+
+  function fmtVal(v) {
+    if (v === null || v === undefined) return '—';
+    if (typeof v === 'number') {
+      return Math.abs(v) > 1000 ? v.toExponential(3) :
+             Math.abs(v) > 0.001 ? v.toFixed(4) : v.toExponential(3);
+    }
+    return String(v);
+  }
+
+  function renderResultados(resp) {
+    resultsBody.innerHTML = '';
+    if (!resp.ok) {
+      const div = document.createElement('div');
+      div.className = 'results-erro';
+      div.textContent = 'Erro: ' + (resp.erro || 'desconhecido');
+      resultsBody.appendChild(div);
+      panel.classList.add('open');
+      return;
+    }
+    const avisos = [...(resp.avisos_conversao||[]), ...(resp.avisos_runtime||[])];
+    if (avisos.length) {
+      const av = document.createElement('div');
+      av.className = 'results-avisos';
+      av.textContent = '⚠ ' + avisos.join(' | ');
+      resultsBody.appendChild(av);
+    }
+    const resultados = resp.resultados || {};
+    const ordem = resp.ordem_execucao || Object.keys(resultados);
+    if (ordem.length === 0) {
+      const div = document.createElement('div');
+      div.className = 'results-erro';
+      div.textContent = 'Nenhum resultado retornado.';
+      resultsBody.appendChild(div);
+    }
+    for (const nome of ordem) {
+      const res = resultados[nome];
+      if (!res) continue;
+      const card = document.createElement('div');
+      card.className = 'result-card';
+      const saude = res['estado_saude'] || '';
+      const corSaude = saude === 'NORMAL' ? 'status-normal'
+                     : saude === 'ALERTA'  ? 'status-alert' : 'status-critical';
+      card.innerHTML = `<h4>${nome} <span class="${corSaude}">${saude}</span></h4>`;
+      const IGNORAR = new Set(['t','origem','estado_saude','origem_dado','avisos']);
+      for (const [k, v] of Object.entries(res)) {
+        if (IGNORAR.has(k) || typeof v === 'object') continue;
+        const row = document.createElement('div');
+        row.className = 'result-row';
+        row.innerHTML = `<span>${k}</span><span class="result-val">${fmtVal(v)}</span>`;
+        card.appendChild(row);
+      }
+      resultsBody.appendChild(card);
+    }
+    resultsTitle.textContent = `Resultados — ${ordem.length} ativo(s) executado(s)`;
+    panel.classList.add('open');
+  }
+
+  document.getElementById('btnExecutar').addEventListener('click', async ()=>{
+    const btn = document.getElementById('btnExecutar');
+    btn.disabled = true; btn.textContent = '⏳ Executando…';
+    try {
+      const graph = getGraphJSON();
+      const resp = await fetch(SERVIDOR + '/api/executar', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(graph)
+      });
+      const data = await resp.json();
+      renderResultados(data);
+    } catch(e) {
+      renderResultados({ok:false, erro: 'Não foi possível conectar ao servidor local: ' + e.message});
+    } finally {
+      btn.disabled = false; btn.textContent = '▶ Executar';
+    }
+  });
+
+  document.getElementById('btnCarregar').addEventListener('click', async ()=>{
+    try {
+      const resp = await fetch(SERVIDOR + '/api/grafo');
+      const data = await resp.json();
+      if (!data.ok) { alert('Erro ao carregar: ' + data.erro); return; }
+      const g = data.grafo;
+      Object.keys(nodes).forEach(removeNode);
+      edges.length = 0;
+      const nodosCarregados = {};
+      for (const n of g.nodes) {
+        if (!n.type || !NODE_DEFS[n.type]) continue;
+        const id = createNode(n.type, n.x || 60, n.y || 60);
+        nodosCarregados[n.id] = id;
+        if (n.parametros) nodes[id].parametros = n.parametros;
+      }
+      setTimeout(()=>{
+        for (const e of g.edges) {
+          const origemId = nodosCarregados[e.from.node];
+          const destinoId = nodosCarregados[e.to.node];
+          if (!origemId || !destinoId) continue;
+          const elOrigem = nodes[origemId] && nodes[origemId].el;
+          const elDestino = nodes[destinoId] && nodes[destinoId].el;
+          const portaOut = elOrigem && elOrigem.querySelector(`.port[data-port="${e.from.port}"][data-dir="out"]`);
+          const portaIn  = elDestino && elDestino.querySelector(`.port[data-port="${e.to.port}"][data-dir="in"]`);
+          if (portaOut && portaIn) tryCreateEdge(portaOut, portaIn);
+        }
+      }, 80);
+    } catch(e) {
+      alert('Não foi possível conectar ao servidor: ' + e.message);
+    }
+  });
+
+  document.getElementById('btnSalvar').addEventListener('click', async ()=>{
+    try {
+      const graph = getGraphJSON();
+      const resp = await fetch(SERVIDOR + '/api/grafo', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(graph)
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        const msg = data.avisos && data.avisos.length
+          ? 'Salvo com avisos:\n' + data.avisos.join('\n')
+          : 'Grafo salvo como graph.json.';
+        alert(msg);
+      } else {
+        alert('Erro ao salvar: ' + data.erro);
+      }
+    } catch(e) {
+      alert('Não foi possível conectar ao servidor: ' + e.message);
+    }
+  });
+
+  document.getElementById('btnCloseResults').addEventListener('click', ()=>{
+    panel.classList.remove('open');
+  });
+
+  (function seed(){
+    const b1 = createNode('bomba', 60, 60 + DEMO_DY);
+    const l1 = createNode('linha', 260, 60 + DEMO_DY);
+    const t1 = createNode('trocador', 460, 40 + DEMO_DY);
+    const a1 = createNode('aquecedor', 260, 220 + DEMO_DY);
+    setTimeout(()=>{
+      const outB = nodes[b1].el.querySelector('.port[data-dir="out"]');
+      const inL = nodes[l1].el.querySelector('.port[data-dir="in"]');
+      tryCreateEdge(outB, inL);
+      const outL = nodes[l1].el.querySelector('.port[data-dir="out"]');
+      const inT1 = nodes[t1].el.querySelector('.port[data-port="frio_in"]');
+      tryCreateEdge(outL, inT1);
+      const outA = nodes[a1].el.querySelector('.port[data-dir="out"]');
+      const inT2 = nodes[t1].el.querySelector('.port[data-port="quente_in"]');
+      tryCreateEdge(outA, inT2);
+    }, 50);
+  })();
+
+})();
+</script>
+</body>
+</html>
