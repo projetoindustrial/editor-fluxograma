@@ -58,12 +58,12 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
   .palette-item{
     display:flex; align-items:center; gap:8px;
     padding:8px 10px; margin-bottom:6px;
-    background:#20252a; border:1px solid var(--panel-border);
+    background:var(--color-surface-card); border:1px solid var(--panel-border);
     border-radius:3px; cursor:grab; font-size:12.5px;
     user-select:none;
   }
   .palette-item:active{ cursor:grabbing; }
-  .palette-item:hover{ border-color:#3a4048; }
+  .palette-item:hover{ border-color:var(--color-border-strong); }
   .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
 
   .legend{ margin-top:22px; padding-top:14px; border-top:1px solid var(--panel-border); }
@@ -124,11 +124,11 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
     display:flex; gap:8px; z-index:5;
   }
   .btn{
-    background:#20252a; border:1px solid var(--panel-border);
+    background:var(--color-surface-card); border:1px solid var(--panel-border);
     color:var(--text); font-size:12px; padding:7px 12px;
     border-radius:3px; cursor:pointer;
   }
-  .btn:hover{ border-color:#3a4048; }
+  .btn:hover{ border-color:var(--color-border-strong); }
   .btn.primary{ border-color:var(--accent); color:var(--accent); }
   .btn.exec{ border-color:#6fae7f; color:#6fae7f; }
   .btn.exec:disabled{ opacity:.4; cursor:not-allowed; }
@@ -149,7 +149,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
   .results-header .btn{ padding:4px 10px; font-size:11px; }
   .results-body{ padding:10px 14px; display:flex; flex-wrap:wrap; gap:10px; }
   .result-card{
-    background:#20252a; border:1px solid var(--panel-border);
+    background:var(--color-surface-card); border:1px solid var(--panel-border);
     border-radius:4px; padding:10px 12px; min-width:200px; flex:1;
   }
   .result-card h4{
@@ -186,7 +186,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
   .modal-hydrocalc{ width:900px; }
   .node.handoff-recebido{ box-shadow:0 0 0 3px #2ecc71; transition:box-shadow .2s; }
   .modal textarea{
-    flex:1; min-height:280px; background:#101315; color:#a9d1ff;
+    flex:1; min-height:280px; background:var(--color-surface-page); color:var(--color-text-link);
     border:1px solid var(--panel-border); border-radius:3px;
     font-family: Consolas, Monaco, monospace; font-size:11px;
     padding:10px; resize:vertical;
@@ -210,7 +210,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
       top:0; left:0; right:0; flex-wrap:nowrap; justify-content:flex-start; gap:6px;
       overflow-x:auto; -webkit-overflow-scrolling:touch;
       padding:calc(8px + env(safe-area-inset-top,0px)) 8px 8px 8px;
-      background:rgba(20,23,26,.94); border-bottom:1px solid var(--panel-border);
+      background:color-mix(in srgb,var(--color-surface-page) 94%,transparent); border-bottom:1px solid var(--panel-border);
     }
     .toolbar .btn{ flex:0 0 auto; white-space:nowrap; }
     .btn{ padding:10px 12px; font-size:12.5px; }
@@ -226,6 +226,41 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
 <!-- Casca compartilhada do Projeto Industrial (menu único em /shell/nav.json) -->
 <link rel="stylesheet" href="/shell/pi-shell.css">
 <script src="/shell/pi-shell.js" defer data-pi-mode="fab" data-pi-pos="br" data-pi-scheme="dark" data-pi-offset="64" data-pi-active="editor-fluxograma"></script>
+<style id="ds-bridge">
+/* Ponte do Design System v2 (tokens com contraste corrigido, out/2026; só tema escuro). Remover este bloco desfaz. */
+:root {
+  --color-brand-deep: #0b1520;
+  --color-brand-petroleum: #1a7a8c;
+  --color-brand-cyan: #00c4c4;
+  --color-brand-cyan-muted: #0d2a2e;
+  --color-surface-page: #0b1520;
+  --color-surface-card: #142333;
+  --color-surface-sidebar: #0f1c28;
+  --color-surface-overlay: rgba(0, 0, 0, 0.55);
+  --color-text-primary: #e8eef2;
+  --color-text-secondary: #8ba3b5;
+  --color-text-inverse: #ffffff;
+  --color-text-link: #5eb8c4;
+  --color-text-link-hover: #00c4c4;
+  --color-status-success: #2da56e;
+  --color-status-success-bg: #0f2a1c;
+  --color-status-warning: #d49a2a;
+  --color-status-warning-bg: #2a220e;
+  --color-status-danger: #e05555;
+  --color-status-danger-bg: #2a1212;
+  --color-status-info: #5eb8c4;
+  --color-status-info-bg: #0f1c28;
+  --color-border-default: #243447;
+  --color-border-strong: #5f7890;
+  --color-border-focus: #00c4c4;
+  --color-focus-ring: 0 0 0 3px rgba(0, 196, 196, 0.4);
+  --bg:var(--color-surface-page);--panel:var(--color-surface-sidebar);--panel-border:var(--color-border-default);
+  --grid-dot:color-mix(in srgb,var(--color-border-default) 70%,var(--color-surface-page));
+  --text:var(--color-text-primary);--text-dim:var(--color-text-secondary);
+  --accent:var(--color-brand-cyan);--invalid:var(--color-status-danger);--border:var(--color-border-default);
+  /* --liquido, --termico, --gas e --dado NÃO mudam: codificam o tipo de fluido */
+}
+</style>
 </head>
 <body>
 <div class="app">
