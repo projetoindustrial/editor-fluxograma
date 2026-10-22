@@ -258,8 +258,16 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
   --grid-dot:color-mix(in srgb,var(--color-border-default) 70%,var(--color-surface-page));
   --text:var(--color-text-primary);--text-dim:var(--color-text-secondary);
   --accent:var(--color-brand-cyan);--invalid:var(--color-status-danger);--border:var(--color-border-default);
-  /* --liquido, --termico, --gas e --dado NÃO mudam: codificam o tipo de fluido */
+  /* DS v2.2: tipo de fluido usa a paleta categórica (escuro): líquido=cat-1, térmico=cat-4, gás=cat-6, dado=cat-5 */
+  --color-cat-1: #2bb6d9;
+  --color-cat-4: #f7ad7c;
+  --color-cat-5: #947cf7;
+  --color-cat-6: #31f7d0;
+  --liquido:var(--color-cat-1);--termico:var(--color-cat-4);--gas:var(--color-cat-6);--dado:var(--color-cat-5);
 }
+/* DS v2.1: foco visível e alvos de toque >= 44px */
+:focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+@media (pointer: coarse) { .btn { min-height: 44px; } }
 </style>
 </head>
 <body>
@@ -567,7 +575,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
     linha_perfil_termico: { label:'Linha (Perfil Térmico)', ports:{ in:[{id:'entrada_vazao', type:'liquido', label:'vazão (m³/s)'},{id:'entrada_temperatura', type:'termico', label:'T_entrada (K)'}], out:[] } },
   };
 
-  const COLORS = { liquido:'#4f8fd1', termico:'#d18b4f', gas:'#6fae7f', dado:'#9b6fd1' };
+  const COLORS = { liquido:'#2bb6d9', termico:'#f7ad7c', gas:'#31f7d0', dado:'#947cf7' }; // = tokens cat-1/4/6/5 do DS v2.2 (escuro)
 
   const canvas = document.getElementById('canvas');
   const svg = document.getElementById('edgesSvg');
