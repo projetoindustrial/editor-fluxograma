@@ -48,7 +48,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
     padding:16px 12px;
     overflow-y:auto;
   }
-  .sidebar h1{
+  .sidebar h2.sb-title{
     font-size:13px; font-weight:600; letter-spacing:.02em;
     color:var(--text); margin:0 0 2px 0;
   }
@@ -204,7 +204,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
       border-right:0; border-top:1px solid var(--panel-border);
       padding:10px 10px calc(10px + env(safe-area-inset-bottom,0px)) 10px;
     }
-    .sidebar h1, .sidebar .sub, .legend{ display:none; }
+    .sidebar h2.sb-title, .sidebar .sub, .legend{ display:none; }
     .palette-item{ flex:0 0 auto; margin:0; padding:12px 14px; min-height:44px; white-space:nowrap; font-size:13px; cursor:pointer; }
     .toolbar{
       top:0; left:0; right:0; flex-wrap:nowrap; justify-content:flex-start; gap:6px;
@@ -268,13 +268,19 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
 /* DS v2.1: foco visível e alvos de toque >= 44px */
 :focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
 @media (pointer: coarse) { .btn { min-height: 44px; } }
+  .sr-only{ position:absolute; width:1px; height:1px; margin:-1px; padding:0; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
 </style>
+<link rel="canonical" href="https://projetoindustrial.github.io/editor-fluxograma/">
+<link rel="alternate" type="text/plain" href="https://projetoindustrial.github.io/editor-fluxograma/llms.txt" title="llms.txt">
+<script type="application/ld+json">{"@context": "https://schema.org", "@type": "SoftwareApplication", "name": "Editor de Fluxograma — Planta Virtual", "applicationCategory": "DesignApplication", "operatingSystem": "Web", "inLanguage": "pt-BR", "url": "https://projetoindustrial.github.io/editor-fluxograma/", "description": "Editor visual de fluxogramas de processo (ativos, equipamentos e conexões) da Planta Virtual.", "isAccessibleForFree": true, "offers": {"@type": "Offer", "price": "0", "priceCurrency": "BRL"}}</script>
 </head>
 <body>
+<h1 class="sr-only">Editor de fluxograma de processo — Planta Virtual</h1>
+<noscript><p style="padding:16px;font-family:system-ui,sans-serif;color:#e6edf3;background:#0b1520">Este editor precisa de JavaScript. Ele permite desenhar fluxogramas de processo no navegador — arraste ativos (bomba, trocador de calor, PSV, tanque), conecte as portas e exporte em JSON. Faz parte da <a href="https://projetoindustrial.github.io/planta-virtual-site/" style="color:#7dd3fc">Planta Virtual</a>.</p></noscript>
 <div class="app">
 
   <div class="sidebar">
-    <h1>Ativos</h1>
+    <h2 class="sb-title">Ativos</h2>
     <p class="sub">arraste pro canvas</p>
 
     <div class="palette-item" draggable="true" data-type="bomba">

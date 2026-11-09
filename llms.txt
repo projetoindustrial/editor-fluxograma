@@ -1,0 +1,9 @@
+# Editor de fluxograma
+
+> Editor visual de fluxogramas de processo (ativos, equipamentos e conexões) da Planta Virtual.
+
+## Páginas
+- [Aplicação](https://projetoindustrial.github.io/editor-fluxograma/)
+
+## Aviso
+Ferramenta visual/interativa: o texto da página descreve o que ela faz; os resultados dependem de uso no navegador.
