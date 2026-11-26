@@ -12,3 +12,7 @@ Editor de fluxograma de processo no navegador: arraste ativos (bomba, trocador d
 ## Rodar localmente
 
 `python -m http.server` na pasta e abrir `http://localhost:8000/`.
+
+## Licença
+
+O código deste repositório está sob a licença [MIT](LICENSE). Dados, nomes, textos e marcas de terceiros citados ou reunidos aqui continuam sob as licenças e os direitos de cada fonte e não são cobertos por esta licença.
