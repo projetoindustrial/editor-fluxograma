@@ -365,7 +365,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
       <span class="dot" style="background:var(--liquido)"></span>Amortecedor de Pulsação (volume)
     </div>
     <div class="palette-item" draggable="true" data-type="separador_trifasico">
-      <span class="dot" style="background:var(--dado)"></span>Separador Trifásico
+      <span class="dot" style="background:var(--dado)"></span>Separador Trifásico (dimensionamento)
     </div>
     <div class="palette-item" draggable="true" data-type="turboexpansor">
       <span class="dot" style="background:var(--gas)"></span>Turboexpansor (REATORES)
@@ -554,7 +554,7 @@ if(["localhost","127.0.0.1",""].indexOf(location.hostname)<0){
     valvula_controle_cv:     { label:'Válvula de Controle (Kv/Cv)', ports:{ in:[{id:'entrada_vazao', type:'dado', label:'Q (m³/h)'}], out:[] } },
     bomba_direta_sem_haste:  { label:'Bomba Ação Direta s/ Haste de Cauda', ports:{ in:[{id:'entrada_pressao_lado_sem_haste', type:'dado', label:'P lado sem haste (Pa)'},{id:'entrada_pressao_lado_com_haste', type:'dado', label:'P lado com haste (Pa)'}], out:[] } },
     amortecedor_pulsacao:    { label:'Amortecedor de Pulsação', ports:{ in:[{id:'entrada_pressao_media', type:'dado', label:'P média (Pa)'}], out:[] } },
-    separador_trifasico: { label:'Separador Trifásico', ports:{ in:[{id:'diametro_candidato', type:'dado', label:'D_m (m)'}], out:[] } },
+    separador_trifasico: { label:'Separador Trifásico (dimensionamento)', ports:{ in:[{id:'diametro_candidato', type:'dado', label:'D_m (m)'}], out:[] } },
     turboexpansor: { label:'Turboexpansor (REATORES)', ports:{ in:[{id:'entrada_P', type:'gas', label:'P1_pa (Pa)'},{id:'saida_P', type:'gas', label:'P2_pa (Pa)'}], out:[] } },
     co2_compressor: { label:'Compressor CO2 (PR)', ports:{ in:[{id:'entrada_P', type:'gas', label:'P1_pa (Pa)'},{id:'saida_P', type:'gas', label:'P2_pa (Pa)'}], out:[{id:'saida_T', type:'gas', label:'T2_real (K)'}] } },
     co2_tubulacao: { label:'Tubulação CO2 (fase densa)', ports:{ in:[{id:'entrada_vazao', type:'gas', label:'vazao_massica_kg_s (kg/s)'},{id:'entrada_T', type:'gas', label:'T_K (K)'}], out:[] } },
