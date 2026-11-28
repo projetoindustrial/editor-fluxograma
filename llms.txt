@@ -5,5 +5,8 @@
 ## Páginas
 - [Aplicação](https://projetoindustrial.github.io/editor-fluxograma/)
 
+## Escopo
+Este editor monta e exporta fluxogramas de processo. A simulação de plantas é o projeto apresentado na página separada [Planta Virtual](https://projetoindustrial.github.io/planta-virtual-site/).
+
 ## Aviso
 Arquivo único, sem dependências externas e sem coleta de dados: o desenho fica só no aparelho. Na versão pública, os botões que dependem de servidor local (Carregar, Salvar, Executar, HydroCalc, Sessão) ficam ocultos. Ferramenta didática, de uso experimental. Ferramenta visual/interativa: o texto da página descreve o que ela faz; os resultados dependem de uso no navegador.

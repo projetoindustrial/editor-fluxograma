@@ -4,6 +4,7 @@ Editor de fluxograma de processo no navegador: arraste ativos (bomba, trocador d
 
 **Acesse:** https://projetoindustrial.github.io/editor-fluxograma/
 
+- Escopo: este editor monta e exporta fluxogramas. A simulação de plantas é o projeto apresentado na página separada [Planta Virtual](https://projetoindustrial.github.io/planta-virtual-site/).
 - Funciona no celular: toque num ativo para adicioná-lo, arraste o cabeçalho do bloco para mover e a bolinha de uma porta até outra para conectar.
 - Arquivo único (`index.html`), sem dependências externas e sem coleta de dados. O desenho fica só no seu aparelho.
 - Na versão pública, os botões que dependem de um servidor local (Carregar, Salvar, Executar, HydroCalc e Sessão do ecossistema) ficam ocultos.
